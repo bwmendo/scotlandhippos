@@ -1,0 +1,199 @@
+---
+title: "ANALYSIS OF SEATTLE CRIME DATA"
+author: "Brandon Mendoza & Melanie Ma"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# Introduction
+
+The dataset used in this study is the "Seattle Crime Data: 2008-Present" dataset provided by the Seattle government. The dataset was selected because it is relevant to the study of the general well-being and safety of Seattle's citizens. The dataset comprises a sample of Seattle's entire crime history data, with a focus on recent data (since 2008). The statistical analysis and visualizations were conducted using R and Tableau. It is important to note that the dataset contains missing values across several columns, which were accounted for and removed accordingly during the analysis.
+
+# Research Questions
+
+Upon closer inspection of the dataset, the aim is to perform more statistical analysis on two research questions:
+
+## 1) What is the overall trend of total crime in Seattle, and how did the pandemic affect crime?
+
+This question is of interest as it seeks to investigate the validity of claims that Seattle has become more dangerous. Raw data will be analyzed to determine if this is the case.
+
+## 2) In order to maximie safety and societal well-being, which precincts are in need of staff (namely, police reports) the most, and for which times of day?
+
+In 2022, the Seattle Police Department staff count reached a new low for the first time in 30 years. This question aims to better understand how SPD can improve community safety by analyzing staffing needs of each precinct and determining specific time intervals where more staff is required. By exploring which precincts are most in need of staff during specific time intervals, resources can be better allocated, and community safety prioritized.
+
+\newpage
+
+# Statistical Analysis
+
+``` {r package-loading, include = FALSE}
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(lubridate)
+library(tseries)
+library(lmtest)
+library(tidyr)
+library(nnet)
+``` 
+
+## 1) What is the overall trend of total crime in Seattle across time, and how did the pandemic affect crime?
+
+``` {r Reading Data}
+# Loading the data
+spd <- read.csv("spd.csv")
+
+spd$Offense.Start.DateTime <- as.POSIXct(spd$Offense.Start.DateTime,
+format="%m/%d/%Y %I:%M:%S %p")
+
+spd$Date.Of.Crime <- as.Date(spd$Offense.Start.DateTime)
+
+recentSpd <- spd %>% 
+  filter(year(spd$Offense.Start.DateTime) >= 2008 & year(spd$Offense.Start.DateTime) <= 2023)
+```
+
+To investigate this inquiry, a time series analysis will be conducted on the dataset to discern the overall pattern of criminal incidents in Seattle.
+
+``` {r Time Series Analysis}
+# Group data from 2008 to 2023 by date of crime committed
+crime_counts <- recentSpd %>%
+  group_by(Date.Of.Crime) %>%
+  summarize(Total.Offenses = n()) %>%
+  arrange(Date.Of.Crime)
+
+# Create time series data with a daily frequency
+crime_ts_data <- ts(crime_counts$Total.Offenses, start = c(year(crime_counts$Date.Of.Crime)[1],
+              month(crime_counts$Date.Of.Crime)[1]), frequency = 365)
+
+# Linear Regression Model for Time Series
+model <- lm(crime_ts_data ~ time(crime_ts_data))
+summary(model)
+
+# Construct a time series graph to model total number of daily reported crime
+crime_ts_plot <- plot(crime_ts_data, xlab = "Time (Days)", ylab = "Total Crimes",
+     main = "Figure 1.1 Total Number Of Daily Reported Crime (2008 - 2023)")
+abline(h = mean(crime_ts_data), col="blue", lwd = 3)
+abline(model, col="green", lwd=3)
+legend("topleft", legend=c("Long-Run Mean", "Regression Line"),
+       col=c("blue", "green"), lty=1, cex=0.8)
+```
+
+Upon examination of Figure 1.1, it can be observed that there has been a general increase in the number of daily reported crimes in Seattle over a period of fifteen years (2008 - 2023). Since the p-value of the linear regression model is significantly lower than the alpha 0.05, there is sufficient evidence to believe that the number of daily reported crimes over the last fifteen years has been changing over time. It is worth noting that the data shows a significant spike in the middle of 2020, which could potentially skew the overall results. In order to further investigate this anomaly, a time series analysis will be conducted on crime data recorded since the beginning of the pandemic (March 11, 2020).
+
+
+``` {r Covid Data}
+#Filter the data to be after the pandemic
+postCovidData <- spd %>%
+  filter(spd$Date.Of.Crime >= as.POSIXct("2020-03-11"))
+covid_crime <- postCovidData %>%
+  group_by(Date.Of.Crime) %>%
+  summarize(Total.Offenses = n()) %>%
+  arrange(Date.Of.Crime)
+
+# Create a time series data for Covid crimes with daily frequency
+covid_crime_ts <- ts(covid_crime$Total.Offenses, start = c(year(covid_crime$Date.Of.Crime)[1],
+                   month(covid_crime$Date.Of.Crime)[1]), frequency = 365)
+
+covidModel <- lm(covid_crime_ts ~ time(covid_crime_ts))
+summary(covidModel)
+
+# Construct a time series graph to model total number of daily reported crime after the pandemic
+covid_crime_plot <- plot(covid_crime_ts, xlab = "Time (Days)", ylab = "Total Crimes",
+     main = "Figure 1.2 Total Number Of Daily Reported Crime (2020 - 2023)")
+abline(h = mean(covid_crime_ts), col="red", lwd = 3)
+abline(lm(covid_crime_ts ~ time(covid_crime_ts)), col="purple", lwd=3)
+legend("topleft", legend=c("Long-Run Mean", "Regression Line"),
+       col=c("red", "purple"), lty=1:2, cex=0.8)
+```
+
+Based on the information presented in Figure 1.2, it appears that the total number of daily reported crimes has remained relatively unchanged, as indicated by the relatively flat regression line. In order to gain a more comprehensive understanding of the sudden increase in reported crime, a table consisting of crime types and their absolute frequencies during May 2020 will be examined.
+
+``` {r offenses}
+may2020 <- spd %>%
+  filter(month(spd$Date.Of.Crime) == 5)
+
+mayCovidOffense <- may2020 %>%
+  group_by(Offense) %>%
+  summarise(TotalOffenses = n())
+
+mayCovidOffenseGroup <- may2020 %>%
+  group_by(Offense.Parent.Group) %>%
+  summarise(TotalOffenses = n()) %>%
+  arrange(desc(TotalOffenses))
+
+mayCovidOffenseGroup
+```
+
+As depicted in the above table, the surge in the total number of daily reported crimes is attributed to an increase in Larceny - Theft, Fraud, and Assault offenses. This occurrence is rationalized within the context of the surge in Asian hate crimes and theft, which could be attributed to the unemployment rate increase among Seattle citizens, leading to a rise in criminal activity and credit card fraud regarding online shopping.
+
+### Analysis
+
+Assuming the null hypothesis to be valid (lack of statistically significant correlation between time and total daily reported crime in Seattle), the probability of observing the trend illustrated in Figure 1.1 is 2.2 x 10^-16. Hence, the null hypothesis is rejected, and there is convincing evidence supporting the presence of a correlation between time and total daily reported crimes in Seattle.
+
+\newpage
+
+## 2) In order to maximize safety and societal well-being, which precincts are in need of staff (namely, police reports) the most, and for which times of day?
+
+``` {r}
+# Formatting the datetime and create a new TimeGroup column
+postCovidData$Report.DateTime <- as.POSIXct(postCovidData$Report.DateTime,
+                                            format="%m/%d/%Y %I:%M:%S %p")
+
+timeOfReport <- as.numeric(format(postCovidData$Report.DateTime, "%H%M%S"))
+postCovidData$TimeGroup <- cut(timeOfReport, breaks = 
+                           c(0, 30000, 60000, 90000, 120000, 150000, 180000, 210000, 240000), 
+                     labels = c("12 AM to 3 AM", "3 AM to 6 AM", "6 AM to 9 AM",
+                                "9 AM to 12 PM", "12 PM to 3 PM", "3 PM to 6 PM",
+                                "6 PM to 9 PM", "9 PM to 12 AM"), 
+                     include.lowest = TRUE)
+```
+
+In order to investigate this inquiry, an analysis of recent data (after the pandemic) should be used since it has been concluded in the previous question that there is a disparity between pre-pandemic and post-pandemic data. As such, the focus is on identifying the precincts that require additional staffing and determining the most vulnerable periods of the day.
+
+The comparison will encompass the total number of crimes committed, specifically assessing whether these crimes are categorized as violent, and the corresponding time period of occurrence.
+
+``` {r violent crimes}
+# Assess the number of violent crimes in Seattle
+violentData <- postCovidData %>%
+  filter(Precinct != "UNKNOWN" & Precinct != "" & Precinct != "<Null>" & Precinct != "OOJ") %>%
+  mutate(Violent.Crime = Offense %in% c("Robbery", "Rape", "Murder & Nonnegligent Manslaughter",
+                                        "Aggravated Assault")) %>%
+  group_by(Precinct, Violent.Crime) %>%
+  summarise(TotalOffenses = n()) %>%
+  pivot_wider(names_from = Precinct, values_from = TotalOffenses)
+
+violentData
+chisq.test(violentData)
+```
+
+The objective is to evaluate if there is a discrepancy in the number of violent crimes committed across different precincts in Seattle. Based on the definition provided by Seattle.gov, violent crimes include robbery, rape, homicide, and aggravated assault. By utilizing Pearson's chi-squared test of independence, the observed data has a probability of 2.2*10^-16 under the null hypothesis that there is no noteworthy variance in violent crimes per precinct. Consequently, there is compelling evidence to suggest that certain precincts experience a higher incidence of violent crimes, indicating a requirement for more experienced personnel.
+
+The West and North precincts (represented by "W" and "N", respectively) exhibit a significant number of violent crimes. Consequently, these precincts are ideal candidates for analysis to determine the required staffing levels for optimal safety. Specifically, the analysis will involve assessing the total crimes occurring at different times of the day in these precincts to determine when additional staffing is required.
+
+``` {r}
+# Creating a comparison table across the N and W precincts and time intervals in the day
+compare <- postCovidData %>%
+  filter(Precinct == "W" | Precinct == "N") %>%
+  group_by(Precinct, TimeGroup) %>%
+  summarise(TotalOffenses = n()) %>%
+  arrange(desc(TotalOffenses))
+
+compare
+```
+
+Based on the table, the North and West precincts deal with the most reported crimes around the 9 AM to 3 PM interval, suggesting that staffing is needed there the most. Therefore, amongst the 5 precincts in Seattle, the North and West precincts should be prioritized with the most staffing with a heavy emphasis on the time interval between 9 AM to 3 PM for shifts.
+
+\newpage
+
+# Conclusion
+
+The analysis of the Seattle Crime Data: 2008-Present dataset has provided insights into two key research questions. Firstly, the analysis showed that there is a statistically significant correlation between time and total daily reported crimes in Seattle, indicating that Seattle has become more dangerous over time. Specifically, the surge in the total number of daily reported crimes was attributed to an increase in Larceny-Theft, Fraud, and Assault offenses, which is potentially due to an increase in Asian hate crimes and theft, leading to a rise in criminal activity and credit card fraud regarding online shopping. 
+
+Secondly, the analysis revealed which precincts require additional staffing to maximize safety and societal well-being, and during which times of day, specifically the high volume of reported crimes to the North and West precincts, and their need for the most staff in the general 9 AM to 3 PM time interval.
+
+By analyzing crime trends with respect to time and staffing needs of each precinct and determining specific time intervals where more staff is required, resources can be better allocated, and community safety prioritized. Overall, the results of this study have implications for Seattle policymakers to enhance community safety and well-being.
+
+# Suggestions for Future Research
+
+Although the study investigates crime and staffing trends in Seattle, it does not offer a thorough contextual analysis of the underlying factors contributing to these trends. Despite identifying a correlation between time and reported crimes, the study does not delve into potential explanations for this correlation. In the future, the team aims to further investigate relevant data and analyze potential causes for the general trend of rising reported crimes in Seattle.
+
+It is noteworthy that this study draws on a solitary dataset of Seattle crime data, raising concerns regarding the representativeness of crime patterns in other cities or regions. Furthermore, the dataset contains missing and erroneous values that were subsequently removed, potentially impacting the accuracy of the analysis. For instance, a considerable number of precincts were labeled as various forms of "N/A" such as "<Null>" and "UNKNOWN." As such, it is suggested that a more robust approach to data collection and validation be implemented for this dataset.

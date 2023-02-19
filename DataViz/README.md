@@ -12,3 +12,7 @@ The downtown area of Seattle, specifically around Pike Place, tends to consisten
 When comparing 2008 to 2022 crimes by offense, Burglary/Breaking & Entering and Destruction/Vandalism switched spots to 2nd and 3rd most common offense. Theft from motor vehicle offenses have decreased in number, however, Beat Q3 still remains the most common place of occurence for them.
 
 ### The changes in pre-selected crime occurences line graph aims to answer the questions, "How have the number of occurences of the leading crime offenses changed throughout the years, and what types of crimes are on the rise, on the fall, having significant changes, and have relatively stayed consistent?"
+Offense changes throughout the years or lack thereof that have stuck out have been:
++ Significant increases to "Theft to Motor Vehicle Parts or Accessories" and "Identity Theft"
++ "Drug/Narcotic Violations" has had multiple significant drops in number of occurences
++ "Driving Under the Influence" has stayed relatively consistent from 2008 to 2022
